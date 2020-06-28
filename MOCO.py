@@ -24,6 +24,7 @@ import csv
 
 from PIL import Image
 from torch.utils.data import Dataset
+from pycocotools.coco import COCO
 
 # model_names = sorted(name for name in models.__dict__
 #     if name.islower() and not name.startswith("__")
@@ -215,6 +216,17 @@ def main_worker(gpu, ngpus_per_node, args):
     attention_masks = []
     path_to_biobert = './pretrained/'
     tokenizer = BertTokenizer.from_pretrained(path_to_biobert, do_lower_case=True)
+
+    dataDir = '/home/dzhang4'
+    dataType = 'train2017'
+    instances_annFile = os.path.join(dataDir, 'coco/annotations/annotations/instances_{}.json'.format(dataType))
+    coco = COCO(instances_annFile)
+
+    # initialize COCO API for caption annotations
+    captions_annFile = os.path.join(dataDir, 'coco/annotations/annotations/captions_{}.json'.format(dataType))
+    coco_caps = COCO(captions_annFile)
+    ids = list(coco.anns.keys())
+    '''
     with open(args.data, 'r', encoding='utf-8') as f:
         reader = csv.reader(f)
         sentence_sum = 0
@@ -233,6 +245,25 @@ def main_worker(gpu, ngpus_per_node, args):
             attention_masks.append(mask.reshape([1, -1, 64]))
             sentence_sum += 1
             print(sentence_sum)
+
+    '''
+    for index in ids:
+        img_id = coco.anns[index]['image_id']
+        annIds = coco_caps.getAnnIds(imgIds=img_id)
+        anns = coco_caps.loadAnns(annIds)
+        sentence1 = anns[0]['caption']
+        sentence2 = anns[1]['caption']
+        pos_dict1 = tokenizer.encode_plus(sentence1, add_special_tokens=True, max_length=64,
+                                             pad_to_max_length=True,
+                                             return_attention_mask=True, return_tensors='pt')
+        pos_dict2 = tokenizer.encode_plus(sentence2, add_special_tokens=True, max_length=64,
+                                              pad_to_max_length=True,
+                                              return_attention_mask=True, return_tensors='pt')
+        input_id = torch.cat((pos_dict1['input_ids'], pos_dict2['input_ids']), dim=0)
+        mask = torch.cat((pos_dict1['attention_mask'], pos_dict2['attention_mask']),dim=0)
+        input_ids.append(input_id.reshape([1, -1, 64]))
+        attention_masks.append(mask.reshape([1, -1, 64]))
+        sentence_sum += 1
 
     input_ids = torch.cat(input_ids, dim=0)
     attention_masks = torch.cat(attention_masks, dim=0)
