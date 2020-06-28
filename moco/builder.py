@@ -23,14 +23,14 @@ class MoCo(nn.Module):
 
         # create the encoders
         self.encoder_q = BertForSequenceClassification.from_pretrained(
-            './pretrained/',  # Use the 12-layer BERT model, with an uncased vocab.
+            'bert-base-uncased',  # Use the 12-layer BERT model, with an uncased vocab.
             num_labels=dim,  # The number of output labels--2 for binary classification.
             # You can increase this for multi-class tasks.
             output_attentions=False,  # Whether the model returns attentions weights.
             output_hidden_states=False,  # Whether the model returns all hidden-states.
         )
         self.encoder_k = BertForSequenceClassification.from_pretrained(
-            './pretrained/',  # Use the 12-layer BERT model, with an uncased vocab.
+            'bert-base-uncased',  # Use the 12-layer BERT model, with an uncased vocab.
             num_labels=dim,  # The number of output labels--2 for binary classification.
             # You can increase this for multi-class tasks.
             output_attentions=False,  # Whether the model returns attentions weights.

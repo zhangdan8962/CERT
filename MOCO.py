@@ -215,7 +215,7 @@ def main_worker(gpu, ngpus_per_node, args):
     input_ids = []
     attention_masks = []
     path_to_biobert = './pretrained/'
-    tokenizer = BertTokenizer.from_pretrained(path_to_biobert, do_lower_case=True)
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
 
     dataDir = '/home/dzhang4'
     dataType = 'train2017'
