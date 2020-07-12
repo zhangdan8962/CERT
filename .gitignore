@@ -1,0 +1,4 @@
+*.pkl
+moco_model/
+multi/
+checkpoints/

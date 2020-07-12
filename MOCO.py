@@ -35,16 +35,16 @@ parser.add_argument('--data',  default='./augment.csv', type=str,
                     help='path to dataset')
 parser.add_argument('-j', '--workers', default=32, type=int, metavar='N',
                     help='number of data loading workers (default: 32)')
-parser.add_argument('--epochs', default=100, type=int, metavar='N',
-                    help='number of total epochs to run')
+parser.add_argument('--epochs', default=50, type=int, metavar='N',
+                    help = 'number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
-parser.add_argument('-b', '--batch_size', default=16, type=int,
+parser.add_argument('-b', '--batch_size', default=256, type=int,
                     metavar='N',
                     help='mini-batch size (default: 256), this is the total '
                          'batch size of all GPUs on the current node when '
                          'using Data Parallel or Distributed Data Parallel')
-parser.add_argument('--lr', '--learning-rate', default=0.00004, type=float,
+parser.add_argument('--lr', '--learning-rate', default=0.03, type=float,
                     metavar='LR', help='initial learning rate', dest='lr')
 parser.add_argument('--schedule', default=[120, 160], nargs='*', type=int,
                     help='learning rate schedule (when to drop lr by 10x)')
@@ -67,9 +67,9 @@ parser.add_argument('--dist-backend', default='nccl', type=str,
                     help='distributed backend')
 parser.add_argument('--seed', default=None, type=int,
                     help='seed for initializing training. ')
-parser.add_argument('--gpu', default=0, type=int,
+parser.add_argument('--gpu', default=None, type=int,
                     help='GPU id to use.')
-parser.add_argument('--multiprocessing_distributed', default=True,
+parser.add_argument('--multiprocessing_distributed', action='store_true',
                     help='Use multi-processing distributed training to launch '
                          'N processes per node, which has N GPUs. This is the '
                          'fastest way to use PyTorch for either single node or '
@@ -78,9 +78,9 @@ parser.add_argument('--multiprocessing_distributed', default=True,
 parser.add_argument('--save-epoch',default=40,type=int)
 
 # moco specific configs:
-parser.add_argument('--moco-dim', default=128, type=int,
+parser.add_argument('--moco-dim', default=300, type=int,
                     help='feature dimension (default: 128)')
-parser.add_argument('--moco-k', default=96606, type=int,
+parser.add_argument('--moco-k', default=7168, type=int,
                     help='queue size; number of negative keys (default: 96606)')
 parser.add_argument('--moco-m', default=0.999, type=float,
                     help='moco momentum of updating key encoder (default: 0.999)')
@@ -88,11 +88,11 @@ parser.add_argument('--moco-t', default=0.07, type=float,
                     help='softmax temperature (default: 0.07)')
 
 # options for moco v2
-parser.add_argument('--mlp', default=True,
+parser.add_argument('--mlp', action='store_true',
                     help='use mlp head')
-parser.add_argument('--aug-plus', default=True,
+parser.add_argument('--aug-plus', action='store_true',
                     help='use moco v2 data augmentation')
-parser.add_argument('--cos', default=True,
+parser.add_argument('--cos', action='store_true',
                     help='use cosine lr schedule')
 parser.add_argument('--arch', default='./model',
                     help='use cosine lr schedule')
@@ -226,29 +226,15 @@ def main_worker(gpu, ngpus_per_node, args):
     captions_annFile = os.path.join(dataDir, 'coco/annotations/annotations/captions_{}.json'.format(dataType))
     coco_caps = COCO(captions_annFile)
     ids = list(coco.anns.keys())
-    '''
-    with open(args.data, 'r', encoding='utf-8') as f:
-        reader = csv.reader(f)
-        sentence_sum = 0
-        for row in reader:
-            sentence1 = row[0]
-            sentence2 = row[1]
-            pos_dict1 = tokenizer.encode_plus(sentence1, add_special_tokens=True, max_length=64,
-                                             pad_to_max_length=True,
-                                             return_attention_mask=True, return_tensors='pt')
-            pos_dict2 = tokenizer.encode_plus(sentence2, add_special_tokens=True, max_length=64,
-                                              pad_to_max_length=True,
-                                              return_attention_mask=True, return_tensors='pt')
-            input_id = torch.cat((pos_dict1['input_ids'], pos_dict2['input_ids']), dim=0)
-            mask = torch.cat((pos_dict1['attention_mask'], pos_dict2['attention_mask']),dim=0)
-            input_ids.append(input_id.reshape([1, -1, 64]))
-            attention_masks.append(mask.reshape([1, -1, 64]))
-            sentence_sum += 1
-            print(sentence_sum)
-
-    '''
+    img_ids = []
     for index in ids:
         img_id = coco.anns[index]['image_id']
+        if img_id not in img_ids:
+            img_ids.append(img_id)
+    print("Total samples:{}".format(len(img_ids)))
+
+    for img_id in img_ids:
+        
         annIds = coco_caps.getAnnIds(imgIds=img_id)
         anns = coco_caps.loadAnns(annIds)
         sentence1 = anns[0]['caption']
@@ -263,7 +249,7 @@ def main_worker(gpu, ngpus_per_node, args):
         mask = torch.cat((pos_dict1['attention_mask'], pos_dict2['attention_mask']),dim=0)
         input_ids.append(input_id.reshape([1, -1, 64]))
         attention_masks.append(mask.reshape([1, -1, 64]))
-        sentence_sum += 1
+        
 
     input_ids = torch.cat(input_ids, dim=0)
     attention_masks = torch.cat(attention_masks, dim=0)
@@ -277,8 +263,10 @@ def main_worker(gpu, ngpus_per_node, args):
 
     train_loader = torch.utils.data.DataLoader(
         train_dataset,  # The training samples.
-        sampler=torch.utils.data.RandomSampler(train_dataset),  # Select batches randomly
-        batch_size=args.batch_size  # Trains with this batch size.
+        sampler=train_sampler,  # Select batches randomly
+        batch_size=args.batch_size,# Trains with this batch size.
+        num_workers=args.workers,
+        drop_last=True
     )
 
     for epoch in range(args.start_epoch, args.epochs):
@@ -289,13 +277,14 @@ def main_worker(gpu, ngpus_per_node, args):
         # train for one epoch
         train(train_loader, model, criterion, optimizer, epoch, args)
 
-        if epoch % 5 == 0:
+        if not args.multiprocessing_distributed or (args.multiprocessing_distributed
+                and args.rank % ngpus_per_node == 0 ):
             save_checkpoint({
                 'epoch': epoch + 1,
                 'arch': args.arch,
                 'state_dict': model.state_dict(),
                 'optimizer' : optimizer.state_dict(),
-            }, is_best=False, filename='moco_model/moco.tar'.format(epoch))
+                }, is_best=False, filename='./checkpoints/moco_{:03d}.pth.tar'.format(epoch))
 
 def train(train_loader, model, criterion, optimizer, epoch, args):
     batch_time = AverageMeter('Time', ':6.3f')

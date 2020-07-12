@@ -37,9 +37,8 @@ class MoCo(nn.Module):
             output_hidden_states=False,  # Whether the model returns all hidden-states.
         )
 
-        fc_features = self.encoder_q.classifier.in_features
-        self.encoder_q.classifier = nn.Linear(fc_features, dim)
-        self.encoder_k.classifier = nn.Linear(fc_features, dim)
+
+        
 
         if mlp:
             dim_mlp = self.encoder_q.classifier.weight.shape[1]
@@ -49,6 +48,7 @@ class MoCo(nn.Module):
         for param_q, param_k in zip(self.encoder_q.parameters(), self.encoder_k.parameters()):
             param_k.data.copy_(param_q.data)  # initialize
             param_k.requires_grad = False  # not update by gradient
+
 
         # create the queue
         self.register_buffer("queue", torch.randn(dim, K))
@@ -72,6 +72,8 @@ class MoCo(nn.Module):
         batch_size = keys.shape[0]
 
         ptr = int(self.queue_ptr)
+        #print("k:"+str(self.K))
+        #print("batch:"+str(batch_size))
         assert self.K % batch_size == 0  # for simplicity
 
         # replace the keys at ptr (dequeue and enqueue)
@@ -166,7 +168,7 @@ class MoCo(nn.Module):
 
         # labels: positive key indicators
         labels = torch.zeros(logits.shape[0], dtype=torch.long).cuda()
-
+        self._dequeue_and_enqueue(k)
         return logits, labels
 
 # utils
@@ -181,4 +183,9 @@ def concat_all_gather(tensor):
     torch.distributed.all_gather(tensors_gather, tensor, async_op=False)
 
     output = torch.cat(tensors_gather, dim=0)
+    
     return output
+
+
+#model = MoCo(dim=128)
+
