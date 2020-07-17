@@ -20,7 +20,7 @@ if usemoco:
         output_attentions=False,  # Whether the model returns attention
 	output_hidden_states=False,  # Whether the model returns all hidden-states
 	)
-    checkpoint = torch.load('./moco_model/moco_015.pth.tar')
+    checkpoint = torch.load('./checkpoints/moco_027.pth.tar')
     print(checkpoint.keys())
     print(checkpoint['arch'])
     state_dict = checkpoint['state_dict']
@@ -49,5 +49,5 @@ if usemoco:
     model.load_state_dict(checkpoint['state_dict'])						
     #fc_features = model.classifier.in_features
     #model.classifier = nn.Linear(fc_features, 2)
-    torch.save(model.state_dict(), "./moco_model/moco.p")
+    torch.save(model.state_dict(), "./checkpoints/moco.p")
     print('finished')

@@ -6,14 +6,14 @@ import pickle
 import os
 from pycocotools.coco import COCO
 # load model
-state_dict = torch.load('./moco_model/moco.p')
+state_dict = torch.load('./checkpoints/moco.p')
 # for para in model:
 #     print(para,"\t",model[para].size())
 
 # create model
 net = BertForSequenceClassification.from_pretrained(
         'bert-base-uncased',
-        num_labels=300,
+        num_labels=80,
         output_attentions=False,
         output_hidden_states=False,
       )
@@ -25,7 +25,7 @@ net = BertForSequenceClassification.from_pretrained(
 # net.classifier = nn.Linear(fc_features,2)
 
 # load parameters
-net.load_state_dict(state_dict)
+#net.load_state_dict(state_dict)
 
 # for para in net.state_dict():
 #     print(para,"\t",net.state_dict()[para].size())
